@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>My Blog</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script crossorigin src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        function App() {
+            const [posts, setPosts] = React.useState([]);
+            const [title, setTitle] = React.useState('');
+            const [content, setContent] = React.useState('');
+
+            React.useEffect(() => {
+                fetch('/api/posts')
+                    .then((res) => res.json())
+                    .then((data) => setPosts(data));
+            }, []);
+
+            const addPost = () => {
+                if (!title || !content) return;
+                fetch('/api/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, content }),
+                })
+                    .then((res) => res.json())
+                    .then((post) => {
+                        setPosts([post, ...posts]);
+                        setTitle('');
+                        setContent('');
+                    });
+            };
+
+            const deletePost = (id) => {
+                fetch(`/api/posts/${id}`, { method: 'DELETE' }).then(() => {
+                    setPosts(posts.filter((p) => p.id !== id));
+                });
+            };
+
+            const toggleContent = (id) => {
+                setPosts(
+                    posts.map((p) =>
+                        p.id === id ? { ...p, show: !p.show } : p
+                    )
+                );
+            };
+
+            return (
+                <div className="container">
+                    <h1>My Blog</h1>
+                    <div className="form">
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            placeholder="Title"
+                        />
+                        <textarea
+                            value={content}
+                            onChange={(e) => setContent(e.target.value)}
+                            placeholder="Content"
+                        />
+                        <button onClick={addPost}>Add Post</button>
+                    </div>
+                    <div className="posts">
+                        {posts.map((post) => (
+                            <div key={post.id} className="post">
+                                <h2 onClick={() => toggleContent(post.id)}>
+                                    {post.title}
+                                </h2>
+                                {post.show && <p>{post.content}</p>}
+                                <button onClick={() => deletePost(post.id)}>
+                                    Delete
+                                </button>
+                                <hr />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
