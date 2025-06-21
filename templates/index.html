@@ -15,11 +15,17 @@
             const [posts, setPosts] = React.useState([]);
             const [title, setTitle] = React.useState('');
             const [content, setContent] = React.useState('');
+            const [category, setCategory] = React.useState('');
+            const [tags, setTags] = React.useState('');
 
-            React.useEffect(() => {
+            const fetchPosts = () => {
                 fetch('/api/posts')
                     .then((res) => res.json())
                     .then((data) => setPosts(data));
+            };
+
+            React.useEffect(() => {
+                fetchPosts();
             }, []);
 
             const addPost = () => {
@@ -27,13 +33,15 @@
                 fetch('/api/posts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, content }),
+                    body: JSON.stringify({ title, content, category, tags: tags.split(',').map(t=>t.trim()).filter(Boolean) }),
                 })
                     .then((res) => res.json())
                     .then((post) => {
                         setPosts([post, ...posts]);
                         setTitle('');
                         setContent('');
+                        setCategory('');
+                        setTags('');
                     });
             };
 
@@ -51,6 +59,29 @@
                 );
             };
 
+            const like = (id) => {
+                fetch(`/api/posts/${id}/like`, { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => {
+                        setPosts(posts.map(p => p.id === id ? { ...p, likes: data.likes } : p));
+                    });
+            };
+
+            const addComment = (id, authorRef, contentRef) => {
+                const author = authorRef.current.value;
+                const contentVal = contentRef.current.value;
+                if (!author || !contentVal) return;
+                fetch(`/api/posts/${id}/comments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ author, content: contentVal })
+                }).then(res => res.json()).then(comment => {
+                    setPosts(posts.map(p => p.id === id ? { ...p, comments: [...(p.comments || []), comment] } : p));
+                    authorRef.current.value = '';
+                    contentRef.current.value = '';
+                });
+            };
+
             return (
                 <div className="container">
                     <h1>My Blog</h1>
@@ -66,21 +97,52 @@
                             onChange={(e) => setContent(e.target.value)}
                             placeholder="Content"
                         />
+                        <input
+                            type="text"
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            placeholder="Category"
+                        />
+                        <input
+                            type="text"
+                            value={tags}
+                            onChange={(e) => setTags(e.target.value)}
+                            placeholder="Tags (comma separated)"
+                        />
                         <button onClick={addPost}>Add Post</button>
                     </div>
                     <div className="posts">
-                        {posts.map((post) => (
-                            <div key={post.id} className="post">
-                                <h2 onClick={() => toggleContent(post.id)}>
-                                    {post.title}
-                                </h2>
-                                {post.show && <p>{post.content}</p>}
-                                <button onClick={() => deletePost(post.id)}>
-                                    Delete
-                                </button>
-                                <hr />
-                            </div>
-                        ))}
+                        {posts.map((post) => {
+                            const authorRef = React.useRef(null);
+                            const contentRef = React.useRef(null);
+                            return (
+                                <div key={post.id} className="post">
+                                    <h2 onClick={() => toggleContent(post.id)}>
+                                        {post.title}
+                                    </h2>
+                                    <div>
+                                        {post.category && <span>Category: {post.category}</span>}
+                                        {post.tags && post.tags.length > 0 && (
+                                            <span> | Tags: {post.tags.join(', ')}</span>
+                                        )}
+                                    </div>
+                                    {post.show && <p>{post.content}</p>}
+                                    <div>
+                                        <button onClick={() => like(post.id)}>Like ({post.likes})</button>
+                                        <button onClick={() => deletePost(post.id)}>Delete</button>
+                                    </div>
+                                    <div className="comments">
+                                        {(post.comments || []).map(c => (
+                                            <p key={c.id}><strong>{c.author}</strong>: {c.content}</p>
+                                        ))}
+                                        <input type="text" ref={authorRef} placeholder="Name" />
+                                        <input type="text" ref={contentRef} placeholder="Comment" />
+                                        <button onClick={() => addComment(post.id, authorRef, contentRef)}>Add Comment</button>
+                                    </div>
+                                    <hr />
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             );
